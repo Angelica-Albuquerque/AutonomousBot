@@ -1,0 +1,140 @@
+#include <stdio.h>
+#include <stdint.h>
+#include <wiringPiI2C.h>
+#include <time.h>
+#include <wiringPi.h>
+#include<wiringSerial.h>
+#include <string.h>
+#include <errno.h>
+#include<pthread.h>
+#define DEVICE_ID 0x08
+#define PIN 1
+#include <gtk/gtk.h>
+#include <malloc.h>
+#include <espeak/speak_lib.h>
+espeak_POSITION_TYPE position_type;
+espeak_AUDIO_OUTPUT output;
+char *path=NULL;
+int Buflength = 1000, Options=0;
+void* user_data;
+t_espeak_callback *SynthCallback;
+espeak_PARAMETER Parm;
+char Voice[] = {"English"};
+char text[30] = {"Welcome to Principal's office"};
+unsigned int Size,position=0, end_position=0, flags=espeakCHARS_AUTO, *unique_identifier;
+int speech()
+{
+output = AUDIO_OUTPUT_PLAYBACK;
+    int I, Run = 1, L;    
+    espeak_Initialize(output, Buflength, path, Options ); 
+    espeak_SetVoiceByName(Voice);
+    const char *langNativeString = "en"; //Default to US English
+    espeak_VOICE voice;
+        memset(&voice, 0, sizeof(espeak_VOICE)); // Zero out the voice first
+        voice.languages = langNativeString;
+        voice.name = "US";
+        voice.variant = 2;
+       voice.gender = 1;
+        espeak_SetVoiceByProperties(&voice);
+    Size = strlen(text)+1;    
+    espeak_Synth( text, Size, position, position_type, end_position, flags,
+    unique_identifier, user_data );
+    espeak_Synchronize( );
+    return 0;
+}
+void button_click(GtkWidget *button, gpointer data)
+{
+    speech();
+}
+void *sensor()
+{
+  FILE *fl;
+  fl=fopen("value.txt","r");
+  int serial_port ;
+  char str[10];
+  if ((serial_port = serialOpen("/dev/ttyS0", 9600)) < 0)
+  {
+    fprintf(stderr, "Unable to open serial device: %s\n", strerror (errno)) ;
+  }
+
+  if (wiringPiSetup() == -1)
+  {
+    fprintf(stdout, "Unable to start wiringPi: %s\n", strerror (errno)) ;
+  }
+
+ while(fscanf(fl,"%s\n",str)!=EOF)
+ {
+   printf("%s\n",str);
+   serialPrintf(serial_port,str);
+   serialPrintf(serial_port,"\n");
+   while(!(serialGetchar (serial_port)=='1'));
+ }
+}
+void *display()
+{
+    GtkWidget *window;
+    GtkWidget *layout;
+    GtkWidget *image;
+    GtkWidget *button;
+    GtkWidget *btn;
+    gtk_init(&argc, &argv);
+    window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+    gtk_window_set_default_size(GTK_WINDOW(window), 1000, 1000);
+    gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER);
+    gtk_window_set_resizable(GTK_WINDOW(window), TRUE);
+    layout = gtk_layout_new(NULL, NULL);
+    gtk_container_add(GTK_CONTAINER (window), layout);
+    gtk_widget_show(layout);
+    image = gtk_image_new_from_file("display8.png");
+    gtk_layout_put(GTK_LAYOUT(layout), image, 0, 0);
+    button = gtk_button_new_with_label("Principals Office");
+    g_signal_connect(G_OBJECT(button), "clicked", G_CALLBACK(button_click),NULL);
+    gtk_layout_put(GTK_LAYOUT(layout), button, 520, 110);
+    gtk_widget_set_size_request(button, 250, 120);
+    g_signal_connect_swapped(G_OBJECT(window), "destroy",
+    G_CALLBACK(gtk_main_quit), NULL);
+    btn = gtk_button_new_with_label("Directors Office");
+    g_signal_connect(G_OBJECT(btn), "clicked", G_CALLBACK(button_click),NULL);
+    gtk_layout_put(GTK_LAYOUT(layout), btn, 20, 110);
+    gtk_widget_set_size_request(btn, 250, 120);
+    gtk_widget_show_all(window);
+
+    gtk_main();
+}
+int main (int argc, char **argv)
+{
+gtk_init(&argc, &argv);
+ if(wiringPiSetup()==1)
+ {
+  printf("Failed to setup wiringPi\n");
+  return 2;
+ }
+ pinMode(PIN,OUTPUT);
+ FILE *fp;
+ int received_data;
+ int fd = wiringPiI2CSetup(DEVICE_ID);
+ pthread_t th,th1;
+ if(pthread_create(&th1,NULL,&display,NULL)!=0)
+  printf("Thread creation unsuccessful\n");
+ if(pthread_create(&th,NULL,&sensor,NULL)!=0)
+  printf("Thread creation unsuccessful\n");
+ if (fd == -1)
+ {
+  printf("Failed to init I2C communication.\n");
+ }
+ while(1)
+ {
+  fp=fopen("sensor.txt","a");
+  received_data = wiringPiI2CRead(fd);
+  printf("Data received:%d \n", received_data);
+  fprintf(fp,"%d\n",received_data);
+  if(received_data==3)
+   digitalWrite(PIN,HIGH);
+  else
+   digitalWrite(PIN,LOW);
+  fclose(fp);
+ }
+return 0;
+}
+
+
