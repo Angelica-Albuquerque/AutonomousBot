@@ -1,8 +1,8 @@
 # AutonomousBot
 
-Autonomous Navigation Bot- Curio 
+Autonomous Navigation Bot
 
-The code mentioned above belongs to the Processing part of the Autonomous Navigation Bot- Curio .
+The code mentioned above belongs to the Processing part of the Autonomous Navigation Bot .
 
 The path data obtained from ROS to the destination is stored in a text file which is accessed line by line and sent to the motors when a indication is received from them assuming they have travelled the expected distance .
 
